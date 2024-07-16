@@ -46,6 +46,7 @@ system_message_requirements = ("You are required to gather all of this informati
 )
 
 system_message_info = ("Timezone must be a timezone defined by pytz.timezone\n"
+                       "The start, rotation_virtual_start, end, and start_time_of_day must all be timezone aware"
                       f"Today is {dt.now(timezone.utc)}.\n"
                       f"Example of a good input, that contains all of the information defined in the 7 requirements: {example_good_input}.\n"
                       f"Example of an input that is missing some of the information required: {example_missing_input}. In this case, you should prompt the user to provide the missing information.\n"
