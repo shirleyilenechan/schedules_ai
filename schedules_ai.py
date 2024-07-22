@@ -3,39 +3,21 @@ import requests
 import os
 from dateutil import parser
 
-from datetime import datetime as dt, tzinfo, timezone
+from datetime import datetime as dt, tzinfo, timezone, timedelta
 from langchain_core.pydantic_v1 import BaseModel, Field, validator, root_validator, conint
 from typing import Optional, Dict, List, Literal
 
 import pytz
+from pytz import timezone as pytz_timezone
 from icalendar import Calendar
 from datetime import datetime as dt
+import pd_timezones
 
-
-def get_pagerduty_supported_timezones():
-    # XHR request to GET the documentation from this URL
-    url = 'https://stoplight.io/api/v1/projects/cHJqOjU5NTYx/nodes/1afe25e9c94cb-types'
-    response = requests.get(url).json()
-    # extract the timezone section of the documentation
-    timezone_section_pattern = r'### Time Zone\n\n(.*?)(\n###|$)'
-
-    valid_timezones = re.search(timezone_section_pattern, response['data'], re.DOTALL)
-
-    # timezone identifier regex pattern
-    pattern = r'\|\s*([\w/]+)\s*\|'
-
-    if valid_timezones:
-        # Extract the matched timezone section as a string
-        timezone_string = valid_timezones.group(0)
-        
-        # Use re.findall() to create a list of all matches for the timezone identifier pattern
-        timezones = re.findall(pattern, timezone_string, re.DOTALL)
-
-    return timezones[1:]
 
 def is_valid_timezone(tz_identifier, timezones):
+        pd_tz = pd_timezones.timezones
         # Check if the provided tz_identifier is in the list of valid timezones
-        if tz_identifier in timezones:
+        if tz_identifier in pd_tz:
             return True
         else:
             return False
@@ -54,7 +36,7 @@ class Restriction(BaseModel):
     start_time_of_day: str = Field(regex = '^([01]?[0-9]|2[0-3]):([0-5]?[0-9]):([0-5]?[0-9])$', description = "Start time for start_day_of_week reprsented as a string in HH:mm:ss format")
     start_day_of_week: int = Field(description = "Day of the week the shift occurs, represented in ISO 8601 day format (1 is Monday)")
     
-    @validator('start_time_of_day', pre=True, allow_reuse = True)
+    @validator('start_time_of_day', pre=True)
     def validate_start_time(cls, v: str):
         # Attempt to parse the string into a datetime object then convert to time
         try:
@@ -64,7 +46,7 @@ class Restriction(BaseModel):
         # Since the field expects a string, convert the time object back to string
         return v
 
-    @validator('start_day_of_week', pre=True, allow_reuse = True)
+    @validator('start_day_of_week', pre=True)
     def validate_isoweekday(cls, v):
         if not 1 <= v <= 7:
             raise ValueError(f'{v} is not a valid iso weekday')
@@ -72,8 +54,8 @@ class Restriction(BaseModel):
 
 class ScheduleLayers(BaseModel):
     timezone: str = Field(regex = '^[\w/]+$', description="The timezone for a group of users. Timezones must be a valid timezone name as defined by datetime.tzname().")
-    start: dt = Field(description = "The start date and time for a group of users, represented as a datetime object. Start must be timezone aware. Start must also be a future date.")
-    rotation_virtual_start: dt = Field(description = "Datetime object, matching the start datetime object exactly, including the timezone.")
+    start: dt = Field(description = "The group start provided by the user, represented as a datetime object. start must be timezone aware. start must also be a future date.")
+    rotation_virtual_start: dt = Field(description ="The group start provided by the user, represented as a datetime object. rotation_virtual_start must be timezone aware. rotation_virtual_start must also be a future date.")
     end: Optional[dt] = Field(default=None, description="The end date and time for a group of users, represented as a datetime object. End must be timezone aware. If provided, the end date must also be a future date.")
     rotation_turn_length_seconds: Literal[86400, 604800] = Field(description="If the group restriction is a daily_restriction, then the value is 86400. If the group restriction is a weekly_restriction then the value is 604800")
     users: List[User] = Field(description = "A list of user objects, representing each user in the group. The list should match the group's rotation order and rotation pattern exactly.")
@@ -82,17 +64,19 @@ class ScheduleLayers(BaseModel):
 
     @root_validator
     def validate_start_and_end(cls, values):
+        tz = values.get('timezone')
+        rotation_virtual_start = values.get('rotation_virtual_start')
         start = values.get('start')
-        rotation_start = values.get('rotation_virtual_start')
         end = values.get('end')
         now = dt.now(timezone.utc)
         
-        if start != rotation_start:
-            raise ValueError(f"rotation virtual start must match start")
         if start < now:
             raise ValueError("rotation start must be a future date")
         if not is_timezone_aware(start):
             raise ValueError("Rotation start must be a timezone aware datetime object")
+        if not is_timezone_aware(rotation_virtual_start):
+            raise ValueError("rotation_virtual_start must be a timezone aware datetime object")
+        
     
         if end:
             if end < start:
@@ -102,6 +86,27 @@ class ScheduleLayers(BaseModel):
             if not is_timezone_aware(end):
                 raise ValueError("Rotation start must be a timezone aware datetime object")
         return values
+    
+    def adjust_start_date(self):
+        if not self.restrictions:
+            return
+
+        # Find the minimum start_day_of_week
+        min_day = min(r.start_day_of_week for r in self.restrictions)
+
+        # If rotation_virtual_start is already on the correct day, use it
+        if self.rotation_virtual_start.isoweekday() == min_day:
+            self.start = self.rotation_virtual_start
+        else:
+            # Calculate the next occurrence of this day from rotation_virtual_start
+            current = self.rotation_virtual_start
+            while current.isoweekday() != min_day:
+                current += timedelta(days=1)
+            self.start = current
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.adjust_start_date()
 
 class Config(BaseModel):
     name: Optional[str] = Field(min_length=1, max_length=255, description ="The schedule name")
@@ -114,7 +119,7 @@ class Config(BaseModel):
         v = '/'.join(substring.title() for substring in v.split('/'))
         v = v.replace(' ', '_')
 
-        timezones = get_pagerduty_supported_timezones()
+        timezones = pd_timezones.timezones
 
         try:
             pytz.timezone(v)

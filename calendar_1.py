@@ -2,6 +2,7 @@ import calendar
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import pytz
 import random
 
@@ -18,9 +19,9 @@ def generate_random_colors(n):
         colors.append(color)
     return colors
 
-def dataframe_to_html_calendar(df):
+def dataframe_to_html_calendar(df, timezone):
     # Convert shift_start_datetime to datetime objects
-    df['shift_start_datetime'] = pd.to_datetime(df['shift_start_datetime'])
+    df['shift_start_datetime'] = pd.to_datetime(df['shift_start_datetime'], utc=True)
     
     # Get unique users and assign colors
     users = df['user'].unique()
@@ -53,7 +54,13 @@ def dataframe_to_html_calendar(df):
                     day_shifts = df[df['shift_start_datetime'].dt.date == date.date()]
                     
                     if not day_shifts.empty:
-                        shift_info = "<br>".join([f"<span class='shift' style='color: {user_colors[row['user']]};'>{row['user']}: {row['shift_start_datetime'].strftime('%I:%M %p')} - {(row['shift_start_datetime'] + pd.Timedelta(row['shift_duration'])).strftime('%I:%M %p')}</span>" for _, row in day_shifts.iterrows()])
+                        shift_info = "<br>".join([
+                            f"<span class='shift' style='color: {user_colors[row['user']]};'>{row['user']}: "
+                            f"{row['shift_start_datetime'].tz_convert(timezone).strftime('%I:%M %p')} - "
+                            f"{(row['shift_start_datetime'] + pd.Timedelta(row['shift_duration'])).tz_convert(timezone).strftime('%I:%M %p')}"
+                            f"</span>" 
+                            for _, row in day_shifts.iterrows()
+                        ])
                         html_calendar += f"<td style='vertical-align: top; height: 100px; width: 14%;'><strong>{day}</strong><br>{shift_info}</td>"
                     else:
                         html_calendar += f"<td style='vertical-align: top; height: 100px; width: 14%;'><strong>{day}</strong></td>"
@@ -63,3 +70,4 @@ def dataframe_to_html_calendar(df):
         current_date = (current_date.replace(day=28) + timedelta(days=4)).replace(day=1)
     
     return html_calendar
+    
