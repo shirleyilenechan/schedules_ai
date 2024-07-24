@@ -16,7 +16,7 @@ example_6 = "The finance evening team will start their oncall rotation on Jan 5,
 
 #Testing adding multiple shifts in a day - daily
 
-example_7 = "The marketing group will start their on call rotation on Jan 6, 2025. This group is on call Mon 12pm-5pm, Tues 12pm-5pm, and Wed 12pm-5pm, Los Angeles timezone. Users will rotate each day in the following order: Saul Goodman, Jesse Pinkman, Kim Wexler."
+example_7 = "The marketing group will start their on call rotation on Jan 6, 2025. This group is on call Mon 12pm-5pm, Sat 12pm-5pm, and Sun 12pm-5pm, Los Angeles timezone. Users will rotate each day in the following order: Saul Goodman, Jesse Pinkman, Kim Wexler."
 
 example_8 = "The devops group will start their on call rotation on Jan 6, 2025. This group is on call Mon 9am-5pm, Tues 9am-5pm, and Wed 9am-5pm, Los Angeles timezone. Users will rotate each day in the following order: Green Lantern, The Flash."
 
@@ -39,6 +39,3 @@ example_8 = "The devops group will start their on call rotation on Jan 6, 2025. 
 
 
 # Testing Overlapping Shifts
-"The support  team will start their on call rotation on Jan 4, 2025. This group is on call Thurs 9am-12pm, Friday 9am-12pm, Pacific timezone. Users will rotate each week in the following order: Ron Swanson, Leslie Knope, Ron Swanson, Ann Perkins."
-
-"The infrastructure team will start their on call rotation on Jan 4, 2025. This group is on call Tues 9am-12pm, Wed 9am-12pm, and Thurs 9am-12pm, Pacific timezone. Users will rotate each week in the following order: Miranda Priestly, Regina George, Elle Woods."

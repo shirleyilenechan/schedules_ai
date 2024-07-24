@@ -36,9 +36,7 @@ system_message_prompt = (f"You are an expert at gathering the information requir
                          "You specialize in creating schedule layer objects for the POST request to the following endpoint: https://api.pagerduty.com/schedules.\n"
                          "Once you are done gathering the seven (7) requirements, create a ScheduleLayer according to the formatting instructions provided.\n" 
                          "Return 'Success' in the response message once you are able to successfully create a ScheduleLayer object.\n"
-                         "The list of ScheduleLayer objects must include the ScheduleLayer object you've created.\n" 
-                         "The schedule layer list must not contain any duplicates.\n"
-                         "Required: You must return the list of ScheduleLayer objects in every response. Each user input should only create 1 unique ScheduleLayer object."
+                         "Required: You must return the list of ScheduleLayer objects in every response."
 )
                          
 system_message_requirements = ("You are required to gather all of this information from the user:\n"
@@ -54,11 +52,10 @@ system_message_requirements = ("You are required to gather all of this informati
 )
 
 system_message_info = ("The schedule layer timezone must be a valid timezone defined by pytz.timezone.\n"
-                       "Example datetime format: datetime.datetime(2025, 1, 5, 9, 0, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=57600)))"
                        "Required: start must be be offset-aware. rotation_virtual_start must be offset aware. If provided, end must be offset-aware.\n"
                        "Required: start must be timezone aware. rotation_virtual_start must be timezone aware. If provided, end must be timezone aware.\n"
                       f"Today is {dt.now(timezone.utc)}.\n"
-                      "start_time_of_day is required for each restriction object. Time must be represented as a string in HH:mm:ss format.\n"
+                      "start_time_of_day is not None. start_time_of_day is required for each restriction. Time must be represented as a string in HH:mm:ss format.\n"
                       f"Example of a good input, that contains all of the information defined in the 7 requirements: {example_good_input}.\n"
                       f"Example of an input that is missing some of the information required: {example_missing_input}. In this case, you should prompt the user to provide the missing information.\n"
                       f"Example of a good response, showing the format and data type expected for each field: {example_good_response}."

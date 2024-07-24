@@ -10,7 +10,6 @@ from typing import Optional, Dict, List, Literal
 import pytz
 from pytz import timezone as pytz_timezone
 from icalendar import Calendar
-from datetime import datetime as dt
 import pd_timezones
 
 
@@ -54,8 +53,8 @@ class Restriction(BaseModel):
 
 class ScheduleLayers(BaseModel):
     timezone: str = Field(regex = '^[\w/]+$', description="The timezone for a group of users. Timezones must be a valid timezone name as defined by datetime.tzname().")
-    start: dt = Field(description = "The group start provided by the user, represented as a datetime object. start must be timezone aware. start must also be a future date.")
-    rotation_virtual_start: dt = Field(description ="The group start provided by the user, represented as a datetime object. rotation_virtual_start must be timezone aware. rotation_virtual_start must also be a future date.")
+    start: dt = Field(description="The group start provided by the user, represented as a datetime object. start must be timezone aware. start must also be a future date.")
+    rotation_virtual_start: dt = Field(description="The group start provided by the user, represented as a datetime object. rotation_virtual_start must be timezone aware. rotation_virtual_start must also be a future date.")
     end: Optional[dt] = Field(default=None, description="The end date and time for a group of users, represented as a datetime object. End must be timezone aware. If provided, the end date must also be a future date.")
     rotation_turn_length_seconds: Literal[86400, 604800] = Field(description="If the group restriction is a daily_restriction, then the value is 86400. If the group restriction is a weekly_restriction then the value is 604800")
     users: List[User] = Field(description = "A list of user objects, representing each user in the group. The list should match the group's rotation order and rotation pattern exactly.")
@@ -86,27 +85,25 @@ class ScheduleLayers(BaseModel):
             if not is_timezone_aware(end):
                 raise ValueError("Rotation start must be a timezone aware datetime object")
         return values
-    
-    def adjust_start_date(self):
-        if not self.restrictions:
+
+    @root_validator
+    def adjust_start_date(cls, values):
+        if not values["restrictions"]:
             return
 
         # Find the minimum start_day_of_week
-        min_day = min(r.start_day_of_week for r in self.restrictions)
+        min_day = min(r.start_day_of_week for r in values['restrictions'])
 
         # If rotation_virtual_start is already on the correct day, use it
-        if self.rotation_virtual_start.isoweekday() == min_day:
-            self.start = self.rotation_virtual_start
+        if values['rotation_virtual_start'].isoweekday() == min_day:
+            values['start'] = values['rotation_virtual_start']
         else:
             # Calculate the next occurrence of this day from rotation_virtual_start
-            current = self.rotation_virtual_start
+            current = values['rotation_virtual_start']
             while current.isoweekday() != min_day:
                 current += timedelta(days=1)
-            self.start = current
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        self.adjust_start_date()
+            values['start'] = current
+        return values
 
 class Config(BaseModel):
     name: Optional[str] = Field(min_length=1, max_length=255, description ="The schedule name")

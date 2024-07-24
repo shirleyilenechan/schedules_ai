@@ -18,11 +18,11 @@ import pd_timezones
 from system_prompts import system_message_prompt, system_message_requirements, system_message_info, example_daily_rotation, example_weekly_rotation
 from calendar_1 import dataframe_to_html_calendar
 
-st.set_page_config(page_title="Schedule Config", layout="wide")
 llm = ChatOpenAI()
+load_dotenv()
 
 class Response(BaseModel):
-    message: str = Field(title="Message", description="The response message. If the user input includes all of the information required to create a schedule layer object, respond with Success. Otherwise, ask the user for to provide the missing information.")
+    message: str = Field(title="Message", description="The response message.")
     schedule_layer: List[sai.ScheduleLayers] = Field(description="A list of schedule layer objects")
 
 
@@ -30,8 +30,10 @@ def invoke_llm(user_input: str, message_history: list) -> Response:
     parser = PydanticOutputParser(pydantic_object=Response)
     fix_parser = OutputFixingParser.from_llm(parser=parser, llm=llm)
 
-    format_instructions = f"Format instructions: {parser.get_format_instructions()}\n"
-    prompt_messages = [SystemMessage(content=format_instructions)] + message_history + [HumanMessage(content=user_input)]
+    format_instructions = f"Format instructions: {parser.get_format_instructions()}."
+    print("Format instructions:", format_instructions)
+    system_message = message_history[0].content + format_instructions.replace("{", "{{").replace("}", "}}")
+    prompt_messages = [SystemMessage(content=system_message)] + message_history[1:] + [HumanMessage(content=user_input)]
     prompt = ChatPromptTemplate.from_messages(prompt_messages)
     
     chain = prompt | llm | fix_parser
@@ -103,6 +105,7 @@ def process_user_input(user_input):
 
 
 def main():
+    st.set_page_config(page_title="Schedule Config", layout="wide")
     st.title("Configure Your Schedule Rotation 🗓️")
 
     if "config" not in st.session_state:
@@ -115,8 +118,14 @@ def main():
         st.session_state.schedule_name = ""
 
     if "messages" not in st.session_state:
-        st.session_state.messages = [SystemMessage(content=system_message_prompt), SystemMessage(content=system_message_requirements), 
-                                     SystemMessage(content=system_message_info), SystemMessage(content=example_daily_rotation), SystemMessage(content=example_weekly_rotation)]
+        system_message = (
+            f"{system_message_prompt}\n\n"
+            f"{system_message_requirements}\n\n"
+            f"{system_message_info}\n\n"
+            f"{example_daily_rotation}\n\n"
+            f"{example_weekly_rotation}."
+        )
+        st.session_state.messages = [SystemMessage(content=system_message)]
     if "schedule_layer" not in st.session_state:
         st.session_state.schedule_layer = []
 
@@ -125,8 +134,8 @@ def main():
     
     with schedule_info:        
         with st.form(key='config_form'):
-            name = st.text_input("Schedule Name")
-            description = st.text_area("Schedule Description")
+            name = st.text_input("Schedule Name", value="Testing Schedules")
+            description = st.text_area("Schedule Description", value='Shirley Testing Schedule Rotation')
             timezone = st.selectbox(
                 label = 'Select a PagerDuty Supported Timezone',
                 options = pd_timezones.timezones,
