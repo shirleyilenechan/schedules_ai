@@ -14,7 +14,7 @@ from langchain_core.pydantic_v1 import (
 import pd_timezones
 
 
-def is_valid_timezone(tz_identifier, timezones):
+def is_valid_timezone(tz_identifier):
     pd_tz = pd_timezones.timezones
     # Check if the provided tz_identifier is in the list of valid timezones
     return tz_identifier in pd_tz
@@ -22,6 +22,28 @@ def is_valid_timezone(tz_identifier, timezones):
 
 def is_timezone_aware(date_time):
     return tzinfo is not None
+
+
+def get_matching_restriction(restrictions, start_day_of_week):
+    for restriction in restrictions:
+        if restriction.start_day_of_week == start_day_of_week:
+            return restriction
+
+
+def get_start_time(rotation, values):
+    tz = pytz.timezone(values["timezone"])
+
+    day_of_week = rotation.isoweekday()
+    restriction = get_matching_restriction(values["restrictions"], day_of_week)
+
+    start_time = dt.strptime(restriction.start_time_of_day, "%H:%M:%S").time()
+
+    rotation = rotation.astimezone(tz)
+    rotation = rotation.replace(
+        hour=start_time.hour, minute=start_time.minute, second=start_time.second
+    )
+
+    return rotation
 
 
 class User(BaseModel):
@@ -53,7 +75,8 @@ class Restriction(BaseModel):
     start_day_of_week: int = Field(
         description=(
             "Day of the week the shift occurs,"
-            " represented in ISO 8601 day format (1 is Monday)."
+            " represented in ISO 8601 day format (1 is Monday, 7 is Sunday)."
+            " Mon = 1, Tue = 2, Wed = 3, Thurs = 4, Fri = 5, Sat = 6, Sun = 7"
         )
     )
 
@@ -127,11 +150,15 @@ class ScheduleLayers(BaseModel):
 
     original_users: List[User] = Field(description=("A copy of the users list."))
 
+    spans_multiple_days: bool = Field(
+        description=("True if the shift spans multiple days. False otherwise")
+    )
+
     everyday: bool = Field(
         description=("True if the shift occurs every day, False otherwise.")
     )
 
-    @root_validator
+    @root_validator(pre=True)
     def generate_user_list(cls, values):
         num_shifts = values.get("num_shifts", 1)
         original_users = values.get("original_users", [])
@@ -143,28 +170,7 @@ class ScheduleLayers(BaseModel):
         values["users"] = expanded_users
         return values
 
-    @root_validator
-    def adjust_start_date(cls, values):
-        if not values["restrictions"]:
-            return
-
-        # Find the minimum start_day_of_week
-        min_day = min(r.start_day_of_week for r in values["restrictions"])
-
-        # If rotation_virtual_start is already on the correct day, use it
-        if values["rotation_virtual_start"].isoweekday() == min_day:
-            values["start"] = values["rotation_virtual_start"]
-        elif values["everyday"]:
-            values["start"] = values["rotation_virtual_start"]
-        else:
-            # Calculate the next occurrence of this day from rotation_virtual_start
-            current = values["rotation_virtual_start"]
-            while current.isoweekday() != min_day:
-                current += timedelta(days=1)
-            values["start"] = current
-        return values
-
-    @root_validator
+    @root_validator(pre=True)
     def everyday_restriction(cls, values):
         everyday = values.get("everyday", False)
         restrictions = values.get("restrictions", [])
@@ -173,9 +179,9 @@ class ScheduleLayers(BaseModel):
             # Get the details from the first restriction
             first_restriction = restrictions[0]
             if first_restriction:
-                start_time = first_restriction.start_time_of_day
-                duration = first_restriction.duration_seconds
-                restriction_type = first_restriction.type
+                start_time = first_restriction["start_time_of_day"]
+                duration = first_restriction["duration_seconds"]
+                restriction_type = first_restriction["type"]
             new_restrictions = [
                 Restriction(
                     type=restriction_type,
@@ -187,6 +193,32 @@ class ScheduleLayers(BaseModel):
             ]
             values["restrictions"] = new_restrictions
 
+        return values
+
+    @root_validator
+    def adjust_start_date(cls, values):
+        if not values["restrictions"]:
+            return
+
+        days_of_week = [r.start_day_of_week for r in values["restrictions"]]
+
+        # If rotation_virtual_start is already on the correct day, use it
+        if values["rotation_virtual_start"].isoweekday() in days_of_week:
+            values["rotation_virtual_start"] = get_start_time(
+                values["rotation_virtual_start"], values
+            )
+            values["start"] = values["rotation_virtual_start"]
+        elif values["everyday"] is True:
+            values["rotation_virtual_start"] = get_start_time(
+                values["rotation_virtual_start"], values
+            )
+            values["start"] = values["rotation_virtual_start"]
+        else:
+            # Calculate the next occurrence of this day from rotation_virtual_start
+            current = values["rotation_virtual_start"]
+            while current.isoweekday() not in days_of_week:
+                current += timedelta(days=1)
+            values["start"] = get_start_time(current, values)
         return values
 
     @root_validator
@@ -225,12 +257,12 @@ class ScheduleLayers(BaseModel):
                 )
         return values
 
-    @root_validator(pre=True)
+    @root_validator
     def set_rotation_turn_length(cls, values):
         restrictions = values.get("restrictions", [])
         if restrictions:
             for restriction in restrictions:
-                restriction_type = restriction["type"]
+                restriction_type = restriction.type
                 if restriction_type == "daily_restriction":
                     values["rotation_turn_length_seconds"] = 86400
                 elif restriction_type == "weekly_restriction":
@@ -259,11 +291,9 @@ class Config(BaseModel):
         v = "/".join(substring.title() for substring in v.split("/"))
         v = v.replace(" ", "_")
 
-        timezones = pd_timezones.timezones
-
         try:
             pytz.timezone(v)
-            if not is_valid_timezone(v, timezones):
+            if not is_valid_timezone(v):
                 raise ValueError(f"{v} is not a valid timezone supported by PagerDuty.")
         except pytz.UnknownTimeZoneError:
             raise ValueError(

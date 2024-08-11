@@ -3,6 +3,7 @@ import random
 from datetime import timedelta
 
 import pandas as pd
+import pytz
 
 
 def generate_random_colors(n):
@@ -19,22 +20,19 @@ def generate_random_colors(n):
     return colors
 
 
+def generate_shift_info(row, user_colors):
+    return (
+        f"<span class='shift' style='color: {user_colors[row['user']]};'>"
+        f"{row['user']}: "
+        f"{row['shift_start_datetime'].strftime('%I:%M %p')} - "
+        f"{row['shift_end_datetime'].strftime('%I:%M %p')}"
+        f"</span>"
+    )
+
+
 def dataframe_to_html_calendar(df: pd.DataFrame, timezone: str) -> str:
-    """Converts a DataFrame of shifts to an HTML calendar representation.
-
-    Args:
-        df (pd.DataFrame): A DataFrame containing shift information with columns:
-            - user: The name of the person assigned to the shift.
-            - shift_start_datetime: The start time of the shift in UTC timezone.
-            - shift_duration: The duration of the shift in minutes.
-        timezone (str): The target timezone for displaying the shift times.
-
-    Returns:
-        str: A string containing an HTML representation of a calendar shifts
-         highlighted.
-    """
-    # Convert shift_start_datetime to datetime objects
-    df["shift_start_datetime"] = pd.to_datetime(df["shift_start_datetime"], utc=True)
+    # Convert shift_start_datetime to datetime objects and ensure they're in UTC
+    df["shift_start_datetime"] = pd.to_datetime(df["shift_start_datetime"])
 
     # Get unique users and assign colors
     users = df["user"].unique()
@@ -45,7 +43,6 @@ def dataframe_to_html_calendar(df: pd.DataFrame, timezone: str) -> str:
     start_date = df["shift_start_datetime"].min()
     end_date = df["shift_start_datetime"].max()
 
-    # Create a calendar for each month
     html_calendar = "<style>.shift { margin: 1px 0; }</style>"
     current_date = start_date.replace(day=1)
 
@@ -68,28 +65,24 @@ def dataframe_to_html_calendar(df: pd.DataFrame, timezone: str) -> str:
                 if day == 0:
                     html_calendar += "<td></td>"
                 else:
+                    tz = pytz.timezone(timezone)
                     date = current_date.replace(day=day)
+                    date = date.astimezone(tz)
                     day_shifts = df[df["shift_start_datetime"].dt.date == date.date()]
-
                     if not day_shifts.empty:
-                        # Ignore E501 because of long f-string expression
                         shift_info = "<br>".join(
                             [
-                                "<span class='shift' style='color: "
-                                f"{user_colors[row['user']]};'>{row['user']}: "
-                                f"{row['shift_start_datetime'].tz_convert(timezone).strftime('%I:%M %p')} - "  # noqa: E501
-                                f"{(row['shift_start_datetime'] + pd.Timedelta(row['shift_duration'])).tz_convert(timezone).strftime('%I:%M %p')}"  # noqa: E501
-                                f"</span>"
+                                generate_shift_info(row, user_colors)
                                 for _, row in day_shifts.iterrows()
                             ]
                         )
                         html_calendar += (
-                            "<td style='vertical-align: top; height: 100px; "
+                            f"<td style='vertical-align: top; height: 100px; "
                             f"width: 14%;'><strong>{day}</strong><br>{shift_info}</td>"
                         )
                     else:
                         html_calendar += (
-                            "<td style='vertical-align: top; height: 100px; "
+                            f"<td style='vertical-align: top; height: 100px; "
                             f"width: 14%;'><strong>{day}</strong></td>"
                         )
             html_calendar += "</tr>"

@@ -28,20 +28,6 @@ will rotate each week in the following order: Wendy Byrde, Darlene Snell, Ruth
 Langmore.
 """
 
-
-# Testing adding multiple shifts in a day - weekly
-example_5 = """
-The finance team will start their on call rotation on Jan 5, 2025. This group is
-on call Thurs 9am-12pm, Friday 9am-12pm, Tokyo timezone. Users will rotate
-each week in the following order: Gus Fring, Tuco Salamanca.
-"""
-
-example_6 = """
-The finance evening team will start their oncall rotation on Jan 5, 2025. This
-group is on call Thurs 12pm-5pm, Friday 12pm-5pm, Tokyo timezone. Users
-will rotate each week in the following order: Anakin, Grogu, Chewbacca.
-"""
-
 # Testing adding multiple shifts in a day - daily
 example_7 = """
 The marketing group will start their on call rotation on Jan 6, 2025. This group
@@ -51,9 +37,22 @@ Kim Wexler.
 """
 
 example_8 = """
-The devops group will start their on call rotation on Jan 6, 2025. This group is
-on call Fri 9am-5pm, Sat 9am-5pm, and Sun 9am-5pm, Los Angeles timezone. Users
-will rotate each day in the following order: Green Lantern, The Flash.
+The Research & Development group will start their on call rotation on Jan 6, 2025. 
+This group is on call Fri 9am-5pm, Sat 9am-5pm, and Sun 9am-5pm, Los Angeles timezone.
+Users will rotate each day in the following order: Green Lantern, The Flash.
+"""
+
+# Testing adding multiple shifts in a day - weekly
+example_5 = """
+The finance team will start their on call rotation on Jan 5, 2025. This group is
+on call Thurs 9am-12pm, Friday 9am-12pm, Tokyo timezone. Users will rotate
+each week in the following order: Gus Fring, Tuco Salamanca.
+"""
+
+example_6 = """
+The HR team will start their oncall rotation on Jan 5, 2025. This
+group is on call Thurs 12pm-5pm, Friday 12pm-5pm, Tokyo timezone. Users
+will rotate each week in the following order: Anakin, Grogu, Chewbacca.
 """
 
 # Testing every x number of days
@@ -95,15 +94,38 @@ They are on call 12pm-5pm everyday, Sao Paulo timezone.
 """
 
 # Testing multiple people on call everyday
+example_15 = """
+Marge Simpson and Bart Simpson start their on call rotation on Jan 1, 2025. 
+Marge is on call 9am-12pm everyday, Seoul timezone. 
+Bart is on call 12pm-5pm everyday, Seoul timezone.
+"""
 
-# Testing missing input
+example_16 = """
+Inigo Montoya and Sarah Connor start their on call rotation on Jan 2, 2025. 
+Inigo Montoya is on call 2am-9am everyday, Seoul timezone. 
+Sarah Connor is on call 5pm-9pm everyday, Seoul timezone.
+"""
 
-# Testing daily & weekly shifts that occur every day
+# Testing daily shifts spanning multiple days
 
-# Testing daily & weekly shifts spanning multiple days
+example_17 = """
+Leela is on call Monday 9am - Wed 9am, Fry is on call Wed 9am - Fri 9am, and Bender 
+is on call Fri 9am - Mon 9am. They are in the Sydney timezone.
+They will start on 1/3/25.
+"""
+
+example_18 = """
+Hurley works Saturday and Sunday. Sayid works Monday and Tuesday. Jack works Wednesday 
+and Thursday. Jack works Friday. They work in the Sydney timezone, starting on 1/4/2025.
+"""
+
+# Testing weekly shifts spanning multiple days
+
 
 # Testing daily handoff
 
 # Testing weekly handoff
 
 # Testing Overlapping Shifts
+
+# Testing missing input

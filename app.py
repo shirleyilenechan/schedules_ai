@@ -1,7 +1,8 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import List
 
 import pandas as pd
+import pytz
 import streamlit as st
 from dotenv import load_dotenv
 from langchain.output_parsers import OutputFixingParser, PydanticOutputParser
@@ -23,7 +24,7 @@ llm = ChatOpenAI(
 
 class Response(BaseModel):
     message: str = Field(description="The response message.")
-    schedule_layer: List[sai.ScheduleLayers] | None = Field(
+    schedule_layers: List[sai.ScheduleLayers] | None = Field(
         default=[],
         description="list of ScheduleLayer objects",
     )
@@ -48,28 +49,23 @@ def invoke_llm(user_input: str, message_history: list) -> Response:
     return response
 
 
-def transform_schedule_to_df(layers):
+def transform_schedule_to_df(layers, timezone):
     data = []
     for layer in layers:
         if isinstance(layer, sai.ScheduleLayers):
             user_sequence = [user.user_name for user in layer.users]
             restrictions = layer.restrictions
 
-            current_date = layer.start.date()
+            current_date = layer.start
             end_date = current_date + timedelta(weeks=52)
             user_index = 0
+
+            tz = pytz.timezone(timezone)
 
             while current_date <= end_date:
                 for restriction in restrictions:
                     if current_date.isoweekday() == restriction.start_day_of_week:
-                        shift_start_time = datetime.combine(
-                            current_date,
-                            datetime.strptime(
-                                restriction.start_time_of_day, "%H:%M:%S"
-                            ).time(),
-                        ).replace(
-                            tzinfo=layer.start.tzinfo
-                        )  # Ensure timezone is set
+                        shift_start_time = current_date
                         shift_end_time = shift_start_time + timedelta(
                             seconds=restriction.duration_seconds
                         )
@@ -77,8 +73,8 @@ def transform_schedule_to_df(layers):
                         data.append(
                             {
                                 "user": user_sequence[user_index],
-                                "shift_start_datetime": shift_start_time,
-                                "shift_end_datetime": shift_end_time,
+                                "shift_start_datetime": shift_start_time.astimezone(tz),
+                                "shift_end_datetime": shift_end_time.astimezone(tz),
                                 "shift_duration": shift_end_time - shift_start_time,
                             }
                         )
@@ -98,6 +94,7 @@ def transform_schedule_to_df(layers):
 
     df = pd.DataFrame(data)
     df_sorted = df.sort_values(by=["shift_start_datetime"])
+    print(df_sorted)
     return df_sorted
 
 
@@ -110,10 +107,10 @@ def process_user_input(user_input):
     response = invoke_llm(user_input, st.session_state.messages)
 
     if "Success" in response.message:
-        st.session_state.schedule_layer.extend(response.schedule_layer)
+        st.session_state.schedule_layers.extend(response.schedule_layers)
         validated = (
             "Here is the list of validated schedule layer objects: "
-            f"{st.session_state.schedule_layer}"
+            f"{st.session_state.schedule_layers}"
         )
         st.chat_message("assistant").write(validated)
         st.session_state.messages.append(AIMessage(content=validated))
@@ -143,8 +140,8 @@ def main():
 
     if "messages" not in st.session_state:
         st.session_state.messages = [SystemMessage(content=SYSTEM_MESSAGE)]
-    if "schedule_layer" not in st.session_state:
-        st.session_state.schedule_layer = []
+    if "schedule_layers" not in st.session_state:
+        st.session_state.schedule_layers = []
 
     st.session_state.json_complete = False
     schedule_info, schedule_rotation = st.tabs(["Schedule Info", "Schedule Rotation"])
@@ -210,13 +207,13 @@ def main():
                 st.subheader("Schedule Information")
                 st.write(f"**Schedule Name:** {st.session_state.schedule_name}")
                 st.write(f"**Timezone:** {st.session_state.timezone}")
-                schedule_layers = st.session_state.schedule_layer
-                shifts_df = transform_schedule_to_df(schedule_layers)
+                schedule_layers = st.session_state.schedule_layers
+                sch_timezone = st.session_state.timezone
+                shifts_df = transform_schedule_to_df(schedule_layers, sch_timezone)
+
                 if not shifts_df.empty:
                     # Convert to HTML
-                    html_calendar = dataframe_to_html_calendar(
-                        shifts_df, st.session_state.timezone
-                    )
+                    html_calendar = dataframe_to_html_calendar(shifts_df, sch_timezone)
                     # Display the HTML calendar in Streamlit
                     st.markdown(html_calendar, unsafe_allow_html=True)
 
