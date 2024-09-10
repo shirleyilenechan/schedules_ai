@@ -69,7 +69,8 @@ class Restriction(BaseModel):
         regex="^([01]?[0-9]|2[0-3]):([0-5]?[0-9]):([0-5]?[0-9])$",
         description=(
             "Start time for start_day_of_week,"
-            " represented as a string in HH:mm:ss format."
+            " represented as a string in HH:mm:ss format. start_time_of_day"
+            " is not None."
         ),
     )
     start_day_of_week: int = Field(
@@ -147,13 +148,6 @@ class ScheduleLayers(BaseModel):
     restrictions: List[Restriction] = Field(
         description="A list of restriction objects for the group."
     )
-
-    original_users: List[User] = Field(description=("A copy of the users list."))
-
-    spans_multiple_days: bool = Field(
-        description=("True if the shift spans multiple days. False otherwise")
-    )
-
     everyday: bool = Field(
         description=("True if the shift occurs every day, False otherwise.")
     )
@@ -161,10 +155,8 @@ class ScheduleLayers(BaseModel):
     @root_validator(pre=True)
     def generate_user_list(cls, values):
         num_shifts = values.get("num_shifts", 1)
-        original_users = values.get("original_users", [])
-
         expanded_users = []
-        for user in original_users:
+        for user in values["users"]:
             for _ in range(num_shifts):
                 expanded_users.append(user)
         values["users"] = expanded_users
@@ -208,13 +200,7 @@ class ScheduleLayers(BaseModel):
                 values["rotation_virtual_start"], values
             )
             values["start"] = values["rotation_virtual_start"]
-        elif values["everyday"] is True:
-            values["rotation_virtual_start"] = get_start_time(
-                values["rotation_virtual_start"], values
-            )
-            values["start"] = values["rotation_virtual_start"]
         else:
-            # Calculate the next occurrence of this day from rotation_virtual_start
             current = values["rotation_virtual_start"]
             while current.isoweekday() not in days_of_week:
                 current += timedelta(days=1)

@@ -94,7 +94,6 @@ def transform_schedule_to_df(layers, timezone):
 
     df = pd.DataFrame(data)
     df_sorted = df.sort_values(by=["shift_start_datetime"])
-    print(df_sorted)
     return df_sorted
 
 
